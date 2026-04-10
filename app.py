@@ -74,6 +74,14 @@ HTML_TEMPLATE = """
         .checkbox-group { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
         .checkbox-group label { font-size: 14px; cursor: pointer; }
         .json-viewer { background: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 8px; overflow: auto; font-family: 'Monaco', 'Courier New', monospace; font-size: 12px; line-height: 1.5; max-height: 400px; }
+        .agent-summary-grid { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+        .agent-summary-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; min-width: 140px; flex: 1; }
+        .agent-summary-label { font-size: 11px; color: #888; font-weight: 600; text-transform: uppercase; margin-bottom: 6px; }
+        .agent-summary-value { font-size: 20px; font-weight: 700; color: #222; }
+        .agent-table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
+        .agent-table th, .agent-table td { padding: 8px 10px; font-size: 12px; border-bottom: 1px solid #f0f0f0; text-align: left; }
+        .agent-table th { background: #fafafa; color: #666; font-weight: 600; }
+        .agent-table-wrap { max-height: 280px; overflow: auto; border-radius: 8px; }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #f5f5f5; }
         ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
@@ -211,6 +219,32 @@ HTML_TEMPLATE = """
                 }
             };
 
+            const buildAgentSummary = (agentResp) => {
+                const logs = agentResp?.episode_logs || [];
+                const allSteps = logs.flatMap(ep => ep.steps || []);
+                const latestEpisode = logs.length ? logs[logs.length - 1] : null;
+                const avgLatency = allSteps.length
+                    ? allSteps.reduce((sum, s) => sum + Number(s.latency_ms || 0), 0) / allSteps.length
+                    : 0;
+                const maxThrottle = allSteps.length
+                    ? Math.max(...allSteps.map(s => Number(s?.info?.throttling_events ?? s?.observation?.health_status?.throttling_events ?? 0)), 0)
+                    : 0;
+                const maxDowntime = allSteps.length
+                    ? Math.max(...allSteps.map(s => Number(s?.info?.downtime_events ?? s?.observation?.health_status?.downtime_events ?? 0)), 0)
+                    : 0;
+                return {
+                    episodes: logs.length,
+                    totalReward: Number(agentResp?.total_reward || 0),
+                    avgReward: Number(agentResp?.average_reward || 0),
+                    bestScore: Number(agentResp?.best_episode_score || 0),
+                    bestCostCut: Number(agentResp?.best_episode_cost_reduction_pct || 0),
+                    avgLatency,
+                    maxThrottle,
+                    maxDowntime,
+                    latestSteps: latestEpisode?.steps || [],
+                };
+            };
+
             return (
                 <>
                     <div className="header">
@@ -314,13 +348,13 @@ HTML_TEMPLATE = """
                                         <div className="action-editor">
                                             <label className="editor-label">Agent Configuration</label>
                                             <div style={{fontSize: '13px', color: '#666', marginBottom: '12px'}}>
-                                                <div>Strategy: Epsilon-Greedy Q-Learning</div>
+                                                <div>Strategy: Task-aware cost optimizer</div>
                                                 <div>Episodes: 5</div>
-                                                <div>Max Steps/Episode: 10</div>
-                                                <div>Learning Rate: 0.1</div>
+                                                <div>Max Steps/Episode: 25</div>
+                                                <div>Objective: Reduce bill while managing latency/throttling/downtime</div>
                                             </div>
                                             <div className="button-group">
-                                                <button className="primary" onClick={() => apiCall('POST', '/agent/run', {task: task, episodes: 5})} disabled={loading}>
+                                                <button className="primary" onClick={() => apiCall('POST', '/agent/run', {task: task, episodes: 5, max_steps: 25})} disabled={loading}>
                                                     🚀 Run Agent
                                                 </button>
                                                 <button onClick={() => apiCall('GET', '/agent/plan')} disabled={loading}>📋 View Plan</button>
@@ -334,10 +368,59 @@ HTML_TEMPLATE = """
                                         </div>
                                         {response && (
                                             <>
-                                                <label className="editor-label">Agent Logs</label>
-                                                <div className="json-viewer" style={{maxHeight: '500px'}}>
-                                                    {prettyPrint ? JSON.stringify(response, null, 2) : JSON.stringify(response)}
-                                                </div>
+                                                {(() => {
+                                                    const summary = buildAgentSummary(response);
+                                                    return (
+                                                        <>
+                                                            <label className="editor-label">Agent Results</label>
+                                                            <div className="agent-summary-grid">
+                                                                <div className="agent-summary-card"><div className="agent-summary-label">Episodes</div><div className="agent-summary-value">{summary.episodes}</div></div>
+                                                                <div className="agent-summary-card"><div className="agent-summary-label">Best Task Score</div><div className="agent-summary-value">{summary.bestScore.toFixed(2)}</div></div>
+                                                                <div className="agent-summary-card"><div className="agent-summary-label">Best Cost Cut</div><div className="agent-summary-value">{summary.bestCostCut.toFixed(1)}%</div></div>
+                                                                <div className="agent-summary-card"><div className="agent-summary-label">Avg Latency</div><div className="agent-summary-value">{summary.avgLatency.toFixed(1)}ms</div></div>
+                                                                <div className="agent-summary-card"><div className="agent-summary-label">Max Throttle</div><div className="agent-summary-value">{summary.maxThrottle}</div></div>
+                                                                <div className="agent-summary-card"><div className="agent-summary-label">Max Downtime</div><div className="agent-summary-value">{summary.maxDowntime}</div></div>
+                                                                <div className="agent-summary-card"><div className="agent-summary-label">Total Reward</div><div className="agent-summary-value">{summary.totalReward.toFixed(2)}</div></div>
+                                                                <div className="agent-summary-card"><div className="agent-summary-label">Avg Reward</div><div className="agent-summary-value">{summary.avgReward.toFixed(2)}</div></div>
+                                                            </div>
+
+                                                            <label className="editor-label">Latest Episode Steps</label>
+                                                            <div className="agent-table-wrap">
+                                                                <table className="agent-table">
+                                                                    <thead>
+                                                                        <tr>
+                                                                            <th>Step</th>
+                                                                            <th>Action</th>
+                                                                            <th>Reward</th>
+                                                                            <th>Bill</th>
+                                                                            <th>Latency</th>
+                                                                            <th>Status</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {summary.latestSteps.map((s, idx) => (
+                                                                            <tr key={`${s.step}-${idx}`}>
+                                                                                <td>{s.step}</td>
+                                                                                <td>{s.action?.action_type || "n/a"}</td>
+                                                                                <td>{Number(s.reward || 0).toFixed(3)}</td>
+                                                                                <td>${Number(s.bill || 0).toFixed(2)}</td>
+                                                                                <td>{Number(s.latency_ms || 0).toFixed(1)}ms</td>
+                                                                                <td>{s.status_message || "ok"}</td>
+                                                                            </tr>
+                                                                        ))}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+
+                                                            <details style={{marginTop: '10px'}}>
+                                                                <summary style={{cursor: 'pointer', fontSize: '12px', color: '#555'}}>View full raw logs (JSON)</summary>
+                                                                <div className="json-viewer" style={{maxHeight: '360px', marginTop: '8px'}}>
+                                                                    {prettyPrint ? JSON.stringify(response, null, 2) : JSON.stringify(response)}
+                                                                </div>
+                                                            </details>
+                                                        </>
+                                                    );
+                                                })()}
                                             </>
                                         )}
                                     </>
@@ -383,15 +466,9 @@ async def root():
 
 @app.post("/reset")
 async def reset():
-    """Reset environment"""
+    """Reset environment — returns raw Observation (OpenEnv spec)"""
     initial_obs = env.reset()
-    return {
-        "observation": initial_obs.dict() if hasattr(initial_obs, 'dict') else initial_obs,
-        "reward": 0.0,
-        "done": False,
-        "step": 0,
-        "status_message": initial_obs.status_message if hasattr(initial_obs, 'status_message') else "Environment reset"
-    }
+    return initial_obs
 
 
 @app.get("/reset")
