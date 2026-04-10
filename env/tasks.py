@@ -33,7 +33,7 @@ TASKS: List[TaskDefinition] = [
     ),
 ]
 
-# Validator requires scores strictly in (0.0, 1.0) — never exactly 0 or 1.
+# Scores must be strictly in (0.0, 1.0) — never exactly 0 or 1.
 _SCORE_MIN = 0.05
 _SCORE_MAX = 0.95
 
@@ -43,7 +43,7 @@ def _clip(value: float, low: float = 0.0, high: float = 1.0) -> float:
 
 
 def _bound(score: float) -> float:
-    """Clamp raw score into (_SCORE_MIN, _SCORE_MAX) so it is never exactly 0 or 1."""
+    """Ensure score is strictly within (_SCORE_MIN, _SCORE_MAX)."""
     return round(_clip(score, _SCORE_MIN, _SCORE_MAX), 4)
 
 
@@ -85,9 +85,6 @@ def score_rightsize_compute(env: FinOpsEngine) -> float:
         if resource.id in env.underutilized_vm_ids and resource.category == "compute"
     ]
     candidate_ids = {resource.id for resource in candidates}
-    deleted_candidates = [
-        resource_id for resource_id in env.underutilized_vm_ids if resource_id not in {r.id for r in env.resources}
-    ]
 
     theoretical_cost = 0.0
     actual_cost = 0.0
@@ -103,7 +100,9 @@ def score_rightsize_compute(env: FinOpsEngine) -> float:
         1.0,
         sum(env.baseline_cost_by_id.get(rid, 0.0) for rid in env.underutilized_vm_ids) - theoretical_cost,
     )
-    actual_savings = sum(env.baseline_cost_by_id.get(rid, 0.0) for rid in env.underutilized_vm_ids) - actual_cost
+    actual_savings = (
+        sum(env.baseline_cost_by_id.get(rid, 0.0) for rid in env.underutilized_vm_ids) - actual_cost
+    )
 
     score = actual_savings / theoretical_max_savings
     if env.system_latency_ms >= 200.0:
@@ -135,5 +134,19 @@ def get_task_score(env: FinOpsEngine, task_id: str) -> float:
     raise KeyError(f"Unknown task id: {task_id}")
 
 
-def list_tasks() -> List[Dict[str, str]]:
-    return [task.__dict__ for task in TASKS]
+def list_tasks() -> List[Dict]:
+    """Return tasks with grader metadata so the OpenEnv validator can discover them."""
+    return [
+        {
+            "id": task.id,
+            "name": task.name,
+            "difficulty": task.difficulty,
+            "description": task.description,
+            "grader": {
+                "type": "programmatic",
+                "endpoint": f"GET /tasks/{task.id}/score",
+                "score_range": [0.0, 1.0],
+            },
+        }
+        for task in TASKS
+    ]
