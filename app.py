@@ -509,17 +509,17 @@ async def state():
 
 @app.get("/tasks")
 async def tasks():
-    """List tasks"""
-    return {"tasks": list_tasks()}
+    """List tasks with grader metadata (OpenEnv spec)"""
+    return list_tasks()
 
 @app.get("/tasks/{task_id}/score")
 async def get_task_score(task_id: str):
-    """Get task score"""
+    """Get task score - strictly (0.0, 1.0) per OpenEnv spec"""
     try:
         score = compute_task_score(env, task_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Task not found")
-    return {"task_id": task_id, "score": score}
+    return {"score": score}
 
 # ────────────────────────────────────────────────────────────────────────────
 # AGENT ROUTES
