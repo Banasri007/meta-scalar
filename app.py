@@ -711,11 +711,53 @@ async def agent_plan():
 # ────────────────────────────────────────────────────────────────────────────
 # HEALTH CHECK
 # ────────────────────────────────────────────────────────────────────────────
-
 @app.get("/health")
 async def health():
-    """Health check"""
-    return {"status": "ok", "message": "FinOps Cloud Optimizer is running"}
+    return {"status": "healthy", "message": "FinOps Cloud Optimizer is running"}
+
+@app.get("/metadata")
+async def metadata():
+    return {
+        "name": "finops-optimizer",
+        "description": "A real-world simulation for cloud cost optimization (FinOps).",
+        "version": "0.1.0",
+        "domain": "cloud-operations",
+        "tags": ["openenv", "finops", "cloud-cost", "optimization"],
+    }
+
+@app.get("/schema")
+async def schema():
+    return {
+        "action": {
+            "type": "discriminated_union",
+            "discriminator": "action_type",
+            "variants": [
+                {"action_type": "delete_resource", "fields": {"resource_id": "string"}},
+                {"action_type": "modify_instance", "fields": {"instance_id": "string", "new_type": "string"}},
+                {"action_type": "purchase_savings_plan", "fields": {"plan_type": "string", "duration": "string"}},
+                {"action_type": "tag_resource", "fields": {"resource_id": "string", "tag_key": "string", "tag_value": "string"}},
+            ],
+        },
+        "observation": {
+            "type": "object",
+            "fields": {
+                "inventory": "list[CloudResource]",
+                "cost_data": {"daily_burn_rate": "float", "projected_monthly_bill": "float"},
+                "health_status": {"system_latency_ms": "float", "throttling_events": "int", "downtime_events": "int"},
+                "status_message": "string",
+            },
+        },
+        "state": {
+            "type": "object",
+            "fields": {
+                "inventory": "list[CloudResource]",
+                "cost_data": {"daily_burn_rate": "float", "projected_monthly_bill": "float"},
+                "health_status": {"system_latency_ms": "float", "throttling_events": "int", "downtime_events": "int"},
+                "status_message": "string",
+                "step": "int",
+            },
+        },
+    }
 
 if __name__ == "__main__":
     import uvicorn
