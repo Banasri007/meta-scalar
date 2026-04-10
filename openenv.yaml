@@ -2,28 +2,49 @@ spec_version: "1.0"
 name: "finops-optimizer"
 version: "0.1.0"
 description: "A real-world simulation for cloud cost optimization (FinOps)."
+domain: "cloud-operations"
+license: "mit"
 tags:
+  - "openenv"
   - "finops"
   - "cloud-cost"
   - "optimization"
   - "rl-environment"
 runtime: "python"
-entrypoint: "main:app"
+entrypoint: "app:app"
 port: 7860
+endpoints:
+  reset: "POST /reset"
+  step: "POST /step"
+  state: "GET /state"
+grader:
+  type: "programmatic"
+  score_range: [0.0, 1.0]
 
-# Define the 3 required tasks
 tasks:
   - id: "cleanup_unattached"
     name: "The Garbage Collector"
     difficulty: "easy"
     description: "Delete 5 unattached storage volumes and 2 idle test instances."
-    
+    grader:
+      type: "programmatic"
+      endpoint: "GET /tasks/cleanup_unattached/score"
+      score_range: [0.0, 1.0]
+
   - id: "rightsize_compute"
     name: "The Right-Sizer"
     difficulty: "medium"
     description: "Downgrade underutilized VMs to smaller types while keeping latency < 200ms."
-    
+    grader:
+      type: "programmatic"
+      endpoint: "GET /tasks/rightsize_compute/score"
+      score_range: [0.0, 1.0]
+
   - id: "fleet_strategy"
     name: "The Budget Strategist"
     difficulty: "hard"
     description: "Balance deletions, rightsizing, and savings plans for high ROI without downtime."
+    grader:
+      type: "programmatic"
+      endpoint: "GET /tasks/fleet_strategy/score"
+      score_range: [0.0, 1.0]
