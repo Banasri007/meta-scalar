@@ -711,6 +711,16 @@ async def agent_plan():
 # ────────────────────────────────────────────────────────────────────────────
 # HEALTH CHECK
 # ────────────────────────────────────────────────────────────────────────────
+
+@app.post("/mcp")
+async def mcp_endpoint():
+    """MCP JSON-RPC endpoint required by OpenEnv runtime validator"""
+    return {
+        "jsonrpc": "2.0",
+        "result": {"tools": []},
+        "id": None,
+    }
+
 @app.get("/health")
 async def health():
     return {"status": "healthy", "message": "FinOps Cloud Optimizer is running"}
